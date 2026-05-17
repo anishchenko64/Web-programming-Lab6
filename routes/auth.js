@@ -31,18 +31,13 @@ router.post('/register',
     try {
       const { email, password, name, role } = req.body;
 
-      const existing = await User.findOne({ email });
+      const existing = User.findByEmail(email);
       if (existing) {
         return res.status(400).json({ error: 'Користувач з таким email вже існує' });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await User.create({
-        email,
-        password: hashedPassword,
-        name,
-        role: role || 'operator'
-      });
+      const user = User.create({ email, password: hashedPassword, name, role: role || 'operator' });
 
       res.status(201).json({
         message: 'Реєстрація успішна',
@@ -66,10 +61,9 @@ router.post('/login', loginLimiter,
     next();
   },
   passport.authenticate('local', { failWithError: true }),
-  async (req, res) => {
-    // Записуємо вхід у журнал
+  (req, res) => {
     try {
-      await EventLog.create({
+      EventLog.create({
         userId: req.user.id,
         userEmail: req.user.email,
         userRole: req.user.role,
@@ -77,19 +71,13 @@ router.post('/login', loginLimiter,
         details: 'Успішний вхід в систему',
         ip: req.ip
       });
-    } catch (_) { /* не критично */ }
+    } catch (_) {}
 
     res.json({
       message: 'Вхід успішний',
-      user: {
-        id: req.user.id,
-        email: req.user.email,
-        name: req.user.name,
-        role: req.user.role
-      }
+      user: { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role }
     });
   },
-  // Обробник помилок passport.authenticate
   (err, req, res, next) => {
     res.status(401).json({ error: err.message || 'Невірні облікові дані' });
   }
@@ -108,12 +96,7 @@ router.get('/status', (req, res) => {
   if (req.isAuthenticated()) {
     return res.json({
       authenticated: true,
-      user: {
-        id: req.user.id,
-        email: req.user.email,
-        name: req.user.name,
-        role: req.user.role
-      }
+      user: { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role }
     });
   }
   res.json({ authenticated: false });

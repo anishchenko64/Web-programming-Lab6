@@ -29,7 +29,7 @@
     <input type="email" id="email" placeholder="operator@example.com">
     <label>Пароль</label>
     <input type="password" id="password" placeholder="••••••••">
-    <button onclick="doLogin()">Увійти</button>
+    <button id="loginBtn">Увійти</button>
     <div class="link"><a href="/register.html">Немає акаунту? Зареєструватись</a></div>
   </div>
   <script>
@@ -57,6 +57,7 @@
         errEl.style.display = 'block';
       }
     }
+    document.getElementById('loginBtn').addEventListener('click', doLogin);
   </script>
 </body>
 </html>

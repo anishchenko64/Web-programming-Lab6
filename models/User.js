@@ -1,45 +1,60 @@
-const mongoose = require('mongoose');
+const { getDB, saveDB } = require('../db');
 
-const userSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
+const User = {
+  findByEmail(email) {
+    const db = getDB();
+    const res = db.exec('SELECT * FROM users WHERE email = ?', [email.toLowerCase()]);
+    if (!res.length || !res[0].values.length) return null;
+    return rowToObj(res[0].columns, res[0].values[0]);
   },
-  password: {
-    type: String,
-    required: true
+
+  findById(id) {
+    const db = getDB();
+    const res = db.exec('SELECT * FROM users WHERE id = ?', [id]);
+    if (!res.length || !res[0].values.length) return null;
+    return rowToObj(res[0].columns, res[0].values[0]);
   },
-  name: {
-    type: String,
-    required: true,
-    trim: true
+
+  create({ email, password, name, role = 'operator' }) {
+    const db = getDB();
+    db.run(
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+      [email.toLowerCase(), password, name, role]
+    );
+    saveDB();
+    const res = db.exec('SELECT last_insert_rowid() as id');
+    const id = res[0].values[0][0];
+    return this.findById(id);
   },
-  // Ролі: operator (лише перегляд), dispatcher (зміна режимів)
-  role: {
-    type: String,
-    enum: ['operator', 'dispatcher'],
-    default: 'operator'
+
+  incrementLoginAttempts(id) {
+    const db = getDB();
+    const user = this.findById(id);
+    const attempts = user.login_attempts + 1;
+    if (attempts >= 5) {
+      const lockUntil = Date.now() + 15 * 60 * 1000;
+      db.run('UPDATE users SET login_attempts = 0, lock_until = ? WHERE id = ?', [lockUntil, id]);
+    } else {
+      db.run('UPDATE users SET login_attempts = ? WHERE id = ?', [attempts, id]);
+    }
+    saveDB();
   },
-  // Блокування після 5 невдалих спроб (rate limiting на рівні моделі)
-  loginAttempts: {
-    type: Number,
-    default: 0
+
+  resetLoginAttempts(id) {
+    const db = getDB();
+    db.run('UPDATE users SET login_attempts = 0, lock_until = NULL WHERE id = ?', [id]);
+    saveDB();
   },
-  lockUntil: {
-    type: Date
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+
+  isLocked(user) {
+    return user.lock_until && user.lock_until > Date.now();
   }
-});
+};
 
-// Перевірка чи акаунт заблоковано
-userSchema.virtual('isLocked').get(function () {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
-});
+function rowToObj(columns, values) {
+  const obj = {};
+  columns.forEach((col, i) => { obj[col] = values[i]; });
+  return obj;
+}
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = User;

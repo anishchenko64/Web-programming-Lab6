@@ -1,36 +1,26 @@
-const mongoose = require('mongoose');
+const { getDB, saveDB } = require('../db');
 
-// Модель журналу подій — фіксує всі дії в системі
-const eventLogSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+const EventLog = {
+  create({ userId, userEmail, userRole, action, details = '', ip = 'unknown' }) {
+    const db = getDB();
+    db.run(
+      'INSERT INTO event_logs (user_id, user_email, user_role, action, details, ip) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, userEmail, userRole, action, details, ip]
+    );
+    saveDB();
   },
-  userEmail: {
-    type: String,
-    required: true
-  },
-  userRole: {
-    type: String,
-    required: true
-  },
-  action: {
-    type: String,
-    required: true
-  },
-  details: {
-    type: String,
-    default: ''
-  },
-  ip: {
-    type: String,
-    default: 'unknown'
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now
+
+  findAll(limit = 100) {
+    const db = getDB();
+    const res = db.exec(`SELECT * FROM event_logs ORDER BY timestamp DESC LIMIT ${limit}`);
+    if (!res.length) return [];
+    return res[0].values.map(row => {
+      const obj = {};
+      res[0].columns.forEach((col, i) => { obj[col] = row[i]; });
+      obj.timestamp = new Date(obj.timestamp * 1000);
+      return obj;
+    });
   }
-});
+};
 
-module.exports = mongoose.model('EventLog', eventLogSchema);
+module.exports = EventLog;

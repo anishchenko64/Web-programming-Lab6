@@ -5,22 +5,20 @@ const { isAuthenticated, hasRole } = require('../middleware/auth');
 const EventLog = require('../models/EventLog');
 
 // ── Симульовані дані підстанції ───────────────────────────────
-// У реальному проєкті — читаються з SCADA або БД
 let substationData = {
   voltage_110kV: 110.5,
   voltage_35kV: 35.2,
   voltage_10kV: 10.1,
   current_A: 320,
   power_MW: 35.3,
-  mode: 'normal',          // normal | maintenance | emergency
+  mode: 'normal',
   lastUpdated: new Date()
 };
 
 // ── GET /api/substation/parameters ───────────────────────────
-// Доступно: operator, dispatcher
-router.get('/substation/parameters', isAuthenticated, async (req, res) => {
+router.get('/substation/parameters', isAuthenticated, (req, res) => {
   try {
-    await EventLog.create({
+    EventLog.create({
       userId: req.user.id,
       userEmail: req.user.email,
       userRole: req.user.role,
@@ -28,23 +26,17 @@ router.get('/substation/parameters', isAuthenticated, async (req, res) => {
       details: 'Запит параметрів підстанції',
       ip: req.ip
     });
+  } catch (_) {}
 
-    res.json({
-      data: substationData,
-      timestamp: new Date()
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ data: substationData, timestamp: new Date() });
 });
 
 // ── PUT /api/substation/mode ──────────────────────────────────
-// Доступно: лише dispatcher
 router.put('/substation/mode',
   isAuthenticated,
   hasRole('dispatcher'),
-  body('mode').isIn(['normal', 'maintenance', 'emergency']).withMessage('Невірний режим роботи'),
-  async (req, res) => {
+  body('mode').isIn(['normal', 'maintenance', 'emergency']).withMessage('Невірний режим'),
+  (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -56,7 +48,7 @@ router.put('/substation/mode',
     substationData.lastUpdated = new Date();
 
     try {
-      await EventLog.create({
+      EventLog.create({
         userId: req.user.id,
         userEmail: req.user.email,
         userRole: req.user.role,
@@ -64,7 +56,7 @@ router.put('/substation/mode',
         details: `Режим змінено: ${previousMode} → ${mode}`,
         ip: req.ip
       });
-    } catch (_) { /* не критично */ }
+    } catch (_) {}
 
     res.json({
       message: `Режим підстанції змінено на "${mode}"`,
@@ -76,13 +68,9 @@ router.put('/substation/mode',
 );
 
 // ── GET /api/logs ─────────────────────────────────────────────
-// Доступно: лише dispatcher
-router.get('/logs', isAuthenticated, hasRole('dispatcher'), async (req, res) => {
+router.get('/logs', isAuthenticated, hasRole('dispatcher'), (req, res) => {
   try {
-    const logs = await EventLog.find()
-      .sort({ timestamp: -1 })
-      .limit(100);
-
+    const logs = EventLog.findAll(100);
     res.json({ logs });
   } catch (err) {
     res.status(500).json({ error: err.message });
