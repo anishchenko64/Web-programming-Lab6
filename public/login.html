@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Вхід — Моніторинг підстанції</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #1a2332; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 8px; padding: 40px; width: 360px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    h1 { color: #1a2332; font-size: 1.4rem; margin-bottom: 6px; }
+    p.sub { color: #666; font-size: 0.85rem; margin-bottom: 24px; }
+    label { display: block; font-size: 0.85rem; color: #333; margin-bottom: 4px; font-weight: bold; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; margin-bottom: 16px; }
+    input:focus { outline: none; border-color: #2563eb; }
+    button { width: 100%; padding: 11px; background: #2563eb; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .error { color: #dc2626; font-size: 0.85rem; margin-bottom: 12px; display: none; }
+    .link { text-align: center; margin-top: 16px; font-size: 0.85rem; }
+    .link a { color: #2563eb; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ Підстанція 110/35/10 кВ</h1>
+    <p class="sub">Система моніторингу — вхід</p>
+    <div class="error" id="errorMsg"></div>
+    <label>Email</label>
+    <input type="email" id="email" placeholder="operator@example.com">
+    <label>Пароль</label>
+    <input type="password" id="password" placeholder="••••••••">
+    <button onclick="doLogin()">Увійти</button>
+    <div class="link"><a href="/register.html">Немає акаунту? Зареєструватись</a></div>
+  </div>
+  <script>
+    async function doLogin() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const errEl = document.getElementById('errorMsg');
+      errEl.style.display = 'none';
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = '/dashboard.html';
+        } else {
+          errEl.textContent = data.error || 'Помилка входу';
+          errEl.style.display = 'block';
+        }
+      } catch (e) {
+        errEl.textContent = 'Помилка мережі';
+        errEl.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Дашборд — Підстанція 110/35/10 кВ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f4f8; }
+    header { background: #1a2332; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 1.1rem; }
+    .user-info { font-size: 0.85rem; display: flex; align-items: center; gap: 12px; }
+    .badge { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+    .badge.dispatcher { background: #f59e0b; color: #1a2332; }
+    .badge.operator { background: #3b82f6; color: #fff; }
+    .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .card .label { font-size: 0.8rem; color: #666; margin-bottom: 6px; }
+    .card .value { font-size: 1.8rem; font-weight: bold; color: #1a2332; }
+    .card .unit { font-size: 0.85rem; color: #888; }
+    .section { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 16px; }
+    .section h2 { font-size: 1rem; margin-bottom: 14px; color: #1a2332; }
+    .mode-badge { display: inline-block; padding: 4px 14px; border-radius: 12px; font-size: 0.85rem; font-weight: bold; }
+    .mode-normal { background: #d1fae5; color: #065f46; }
+    .mode-maintenance { background: #fef3c7; color: #92400e; }
+    .mode-emergency { background: #fee2e2; color: #991b1b; }
+    select, button { padding: 9px 16px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.9rem; cursor: pointer; }
+    button.primary { background: #2563eb; color: #fff; border: none; }
+    button.primary:hover { background: #1d4ed8; }
+    button.logout { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 0.8rem; padding: 5px 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { background: #f8fafc; text-align: left; padding: 8px 12px; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Підстанція 110/35/10 кВ — Система моніторингу</h1>
+    <div class="user-info">
+      <span id="userName">...</span>
+      <span class="badge" id="roleBadge">...</span>
+      <button class="logout" onclick="doLogout()">Вийти</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Параметри -->
+    <div class="grid" id="paramsGrid">
+      <div class="card"><div class="label">Напруга 110 кВ</div><div class="value" id="v110">—</div><div class="unit">кВ</div></div>
+      <div class="card"><div class="label">Напруга 35 кВ</div><div class="value" id="v35">—</div><div class="unit">кВ</div></div>
+      <div class="card"><div class="label">Напруга 10 кВ</div><div class="value" id="v10">—</div><div class="unit">кВ</div></div>
+      <div class="card"><div class="label">Струм</div><div class="value" id="cur">—</div><div class="unit">А</div></div>
+      <div class="card"><div class="label">Потужність</div><div class="value" id="pwr">—</div><div class="unit">МВт</div></div>
+      <div class="card"><div class="label">Режим роботи</div><div class="value" style="font-size:1rem;padding-top:4px" id="modeBadge">—</div></div>
+    </div>
+
+    <!-- Зміна режиму (лише dispatcher) -->
+    <div class="section hidden" id="modeSection">
+      <h2>Зміна режиму підстанції</h2>
+      <div style="display:flex;gap:10px;align-items:center">
+        <select id="modeSelect">
+          <option value="normal">Нормальний</option>
+          <option value="maintenance">Технічне обслуговування</option>
+          <option value="emergency">Аварійний</option>
+        </select>
+        <button class="primary" onclick="changeMode()">Застосувати</button>
+      </div>
+      <p id="modeMsg" style="margin-top:10px;font-size:0.85rem;color:#16a34a"></p>
+    </div>
+
+    <!-- Журнал подій (лише dispatcher) -->
+    <div class="section hidden" id="logsSection">
+      <h2>Журнал подій</h2>
+      <table>
+        <thead><tr><th>Час</th><th>Користувач</th><th>Роль</th><th>Дія</th><th>Деталі</th></tr></thead>
+        <tbody id="logsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let currentRole = '';
+
+    async function init() {
+      const res = await fetch('/auth/status', { credentials: 'include' });
+      const data = await res.json();
+      if (!data.authenticated) return window.location.href = '/login.html';
+      currentRole = data.user.role;
+      document.getElementById('userName').textContent = data.user.name;
+      const badge = document.getElementById('roleBadge');
+      badge.textContent = currentRole === 'dispatcher' ? 'Диспетчер' : 'Оператор';
+      badge.className = 'badge ' + currentRole;
+      if (currentRole === 'dispatcher') {
+        document.getElementById('modeSection').classList.remove('hidden');
+        document.getElementById('logsSection').classList.remove('hidden');
+        loadLogs();
+      }
+      loadParams();
+    }
+
+    async function loadParams() {
+      const res = await fetch('/api/substation/parameters', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) return;
+      const d = data.data;
+      document.getElementById('v110').textContent = d.voltage_110kV;
+      document.getElementById('v35').textContent = d.voltage_35kV;
+      document.getElementById('v10').textContent = d.voltage_10kV;
+      document.getElementById('cur').textContent = d.current_A;
+      document.getElementById('pwr').textContent = d.power_MW;
+      const modes = { normal: ['Нормальний', 'mode-normal'], maintenance: ['Тех. обслуговування', 'mode-maintenance'], emergency: ['Аварійний', 'mode-emergency'] };
+      const [label, cls] = modes[d.mode] || ['Невідомо', ''];
+      document.getElementById('modeBadge').innerHTML = `<span class="mode-badge ${cls}">${label}</span>`;
+    }
+
+    async function changeMode() {
+      const mode = document.getElementById('modeSelect').value;
+      const res = await fetch('/api/substation/mode', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const data = await res.json();
+      document.getElementById('modeMsg').textContent = res.ok ? data.message : (data.error || 'Помилка');
+      if (res.ok) { loadParams(); loadLogs(); }
+    }
+
+    async function loadLogs() {
+      const res = await fetch('/api/logs', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) return;
+      const tbody = document.getElementById('logsBody');
+      tbody.innerHTML = data.logs.map(l =>
+        `<tr><td>${new Date(l.timestamp).toLocaleString('uk')}</td><td>${l.userEmail}</td><td>${l.userRole}</td><td>${l.action}</td><td>${l.details}</td></tr>`
+      ).join('');
+    }
+
+    async function doLogout() {
+      await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+      window.location.href = '/login.html';
+    }
+
+    init();
+  </script>
+</body>
+</html>
