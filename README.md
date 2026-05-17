@@ -5,13 +5,12 @@
 **Університет:** КПІ ім. Ігоря Сікорського
 
 ## Стек
-Node.js · Express · Passport.js · MongoDB · bcrypt · Helmet.js
+Node.js · Express · Passport.js · SQLite · bcrypt · Helmet.js
 
 ## Запуск
 ```bash
 npm install
-cp .env.example .env
-npm run dev
+npm start
 ```
 
 ## Функціонал
